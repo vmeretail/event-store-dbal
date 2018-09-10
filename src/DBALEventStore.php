@@ -121,7 +121,7 @@ class DBALEventStore implements EventStore, EventStoreManagement
     /**
      * {@inheritDoc}
      */
-    public function append($id, DomainEventStream $eventStream)
+    public function append($id, DomainEventStream $eventStream): void
     {
         // noop to ensure that an error will be thrown early if the ID
         // is not something that can be converted to a string. If we
@@ -157,6 +157,7 @@ class DBALEventStore implements EventStore, EventStoreManagement
             'playhead'    => $domainMessage->getPlayhead(),
             'metadata'    => json_encode($this->metadataSerializer->serialize($domainMessage->getMetadata())),
             'payload'     => json_encode($this->payloadSerializer->serialize($domainMessage->getPayload())),
+            'aggregate_type' => $domainMessage->getAggregateType(),
             'recorded_on' => $domainMessage->getRecordedOn()->toString(),
             'type'        => $domainMessage->getType(),
         ];
@@ -214,7 +215,7 @@ class DBALEventStore implements EventStore, EventStoreManagement
     private function prepareLoadStatement()
     {
         if (null === $this->loadStatement) {
-            $query = 'SELECT uuid, playhead, metadata, payload, recorded_on
+            $query = 'SELECT uuid, playhead, metadata, payload, aggregate_type, recorded_on
                 FROM ' . $this->tableName . '
                 WHERE uuid = ?
                 AND playhead >= ?
@@ -232,6 +233,7 @@ class DBALEventStore implements EventStore, EventStoreManagement
             (int) $row['playhead'],
             $this->metadataSerializer->deserialize(json_decode($row['metadata'], true)),
             $this->payloadSerializer->deserialize(json_decode($row['payload'], true)),
+            $row['aggregate_type'],
             DateTime::fromString($row['recorded_on'])
         );
     }
@@ -266,7 +268,7 @@ class DBALEventStore implements EventStore, EventStoreManagement
         return $id;
     }
 
-    public function visitEvents(Criteria $criteria, EventVisitor $eventVisitor)
+    public function visitEvents(Criteria $criteria, EventVisitor $eventVisitor): void
     {
         $statement = $this->prepareVisitEventsStatement($criteria);
         $statement->execute();
@@ -281,7 +283,7 @@ class DBALEventStore implements EventStore, EventStoreManagement
     private function prepareVisitEventsStatement(Criteria $criteria)
     {
         list($where, $bindValues, $bindValueTypes) = $this->prepareVisitEventsStatementWhereAndBindValues($criteria);
-        $query                                     = 'SELECT uuid, playhead, metadata, payload, recorded_on
+        $query                                     = 'SELECT uuid, playhead, metadata, payload, aggregate_type, recorded_on
             FROM ' . $this->tableName . '
             ' . $where . '
             ORDER BY id ASC';
