@@ -121,6 +121,27 @@ class DBALEventStore implements EventStore, EventStoreManagement
     /**
      * {@inheritDoc}
      */
+    public function loadFromPlayheadSlice($id, int $playheadStart, int $playheadEnd): DomainEventStream
+    {
+        $statement = $this->prepareLoadStatement();
+        $statement->bindValue(1, $this->convertIdentifierToStorageValue($id));
+        $statement->bindValue(2, $playheadStart);
+        $statement->execute();
+
+        $events = [];
+        while ($row = $statement->fetch()) {
+            $event = $this->deserializeEvent($row);
+            if ($event->getPlayhead() <= $playheadEnd) {
+                $events[] = $event;
+            }
+        }
+
+        return new DomainEventStream($events);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     public function append($id, DomainEventStream $eventStream): void
     {
         // noop to ensure that an error will be thrown early if the ID
